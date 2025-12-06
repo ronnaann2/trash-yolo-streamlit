@@ -1,70 +1,65 @@
-import os
-os.environ["YOLO_VERBOSE"] = "False"
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-
 import streamlit as st
-import numpy as np
-from PIL import Image
 from ultralytics import YOLO
-
+from PIL import Image
 
 # ---------------------------------------------------------
-# 1️⃣ Load YOLO Model (Cached)
+# 1. LOAD MODEL (With Caching)
 # ---------------------------------------------------------
+# We use @st.cache_resource so the model loads only ONCE, 
+# not every time the user clicks a button.
 @st.cache_resource
 def load_model():
-    return YOLO("best.pt")  # Make sure filename is correct
+    # Update this path to your actual best.pt file
+    return YOLO('best.pt')
 
 model = load_model()
 
-
 # ---------------------------------------------------------
-# 2️⃣ UI / Dashboard Config
+# 2. UI LAYOUT
 # ---------------------------------------------------------
-st.set_page_config(page_title="Scrap & Metal Detector", layout="wide")
 st.title("🔩 Scrap & Metal Detector")
-st.write("Upload or capture image. System will detect scrap/metal classifications.")
+st.write("Upload an image or use your camera to detect scrap.")
 
-
-# Sidebar: Confidence slider
+# Sidebar for settings
 conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
 
-
 # ---------------------------------------------------------
-# 3️⃣ Input Methods: Upload or Camera
+# 3. IMAGE INPUT (The "Processing" Step)
 # ---------------------------------------------------------
-uploaded_file = st.file_uploader("📂 Upload Image", type=["jpg", "jpeg", "png"])
-camera_file = st.camera_input("📸 Take Photo Now")
+# Option 1: File Upload
+uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png'])
 
+# Option 2: Camera Input (Optional)
+camera_file = st.camera_input("Or take a picture")
+
+# Logic to prioritize inputs (Upload > Camera)
 image_source = uploaded_file if uploaded_file else camera_file
 
-
 # ---------------------------------------------------------
-# 4️⃣ Detection + Output
+# 4. PREDICTION & DISPLAY
 # ---------------------------------------------------------
 if image_source:
-    # Convert buffer → PIL
-    image = Image.open(image_source).convert("RGB")
-    st.image(image, caption="📌 Input Image", use_container_width=True)
+    # STEP A: Convert Streamlit Buffer -> PIL Image
+    # This is the only "processing" you need.
+    image = Image.open(image_source)
 
-    # Detect button
-    if st.button("🚀 RUN DETECTION"):
-        with st.spinner("Detecting objects... Please wait..."):
+    # Display original image
+    st.image(image, caption="Uploaded Image", use_container_width=True)
+
+    # STEP B: Run YOLO Prediction
+    if st.button("Detect Objects"):
+        with st.spinner("Analyzing..."):
+            # Run inference
             results = model.predict(image, conf=conf_threshold)
 
-            # Annotated image conversion (avoid cv2 GUI dependency)
-            annotated_np = results[0].plot()  # numpy BGR array
-            annotated_img = Image.fromarray(annotated_np[:, :, ::-1])  # Convert BGR → RGB
+            # STEP C: Show Results
+            # Plot the results on the image (returns a numpy array)
+            res_plotted = results[0].plot()
+            
+            # Display the annotated image
+            st.image(res_plotted, caption="Detected Objects", use_container_width=True)
 
-            st.image(annotated_img, caption="🔍 Detection Results", use_container_width=True)
-
-            # Counts
-            count_objects = len(results[0].boxes)
-            st.success(f"Detected {count_objects} object(s) in the image")
-
-            # Optional: Display detection classes
-            detected_classes = [model.names[int(c)] for c in results[0].boxes.cls]
-            st.write("📌 Detected Classes:", detected_classes)
-else:
-    st.info("👆 Upload or capture an image to begin detection.")
+            # Optional: Show counts
+            # Get the boxes from the result
+            boxes = results[0].boxes
+            st.success(f"Found {len(boxes)} objects!")
