@@ -92,29 +92,34 @@ with tab2:
 
     st.markdown("---")
     st.subheader("Preprocessing Applied")
-    st.write(
-        "• Auto-Orient — fixes camera rotation\n"
-        "• Resize — 640×640 for YOLO\n"
-        "• Adaptive Contrast — improves visibility in low light"
+    st.markdown(
+        """
+        - Auto-Orient — fixes camera rotation  
+        - Resize — 640×640 for YOLO  
+        - Adaptive Contrast — improves visibility in low light  
+        """
     )
 
     st.markdown("---")
     st.subheader("Augmentations Used")
-    st.write(
-        "• Brightness variation (−20% to +20%)\n"
-        "• Blur up to 2.5px\n"
-        "• Noise up to 0.1%\n"
-        "• **3× synthetic versions per image**"
+    st.markdown(
+        """
+        - Brightness variation: −20% to +20%  
+        - Blur: up to 2.5px  
+        - Noise: up to 0.1% pixels  
+        - **3× augmentation** per training image  
+        """
     )
 
     st.markdown("---")
     st.subheader("🔍 Key Dataset Insights")
-    st.write(
-        "✔ Designed for realistic junkshop scrap environments\n"
-        "✔ Handles dirt, rust, and shape deformities\n"
-        "✔ Supports profit-driven decision making — keeps metal out of trash"
+    st.markdown(
+        """
+        - Designed for real junkshop scrap conditions  
+        - Handles dirt, rust, and deformities  
+        - Increases recycling profitability — prevents metal from being thrown away  
+        """
     )
-
 
 
 # ======================== TAB 3: MODEL PERFORMANCE ========================
