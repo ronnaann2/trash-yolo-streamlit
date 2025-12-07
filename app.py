@@ -85,3 +85,22 @@ if image_source:
                     st.success(f"✅ **PASS** - Metal content: {metal_percentage:.1f}% (Required: ≥{pass_threshold}%)")
                 else:
                     st.error(f"❌ **FAIL** - Metal content: {metal_percentage:.1f}% (Required: ≥{pass_threshold}%)")
+
+
+
+                # ---------------------------------------------------------
+                # MODEL METRICS SECTION
+                # ---------------------------------------------------------
+                st.markdown("## 📊 Model Evaluation Metrics")
+                st.write("Below are evaluation results of the trained model on the test dataset.")
+
+                col_metrics_1, col_metrics_2 = st.columns(2)
+
+                with col_metrics_1:
+                    st.image("confusion_matrix.png", caption="Confusion Matrix", use_container_width=True)
+                    st.caption("Shows how well the model correctly classified metal vs trash. Darker squares indicate stronger accuracy.")
+
+                with col_metrics_2:
+                    st.image("f1_confidence_curve.png", caption="F1-Confidence Curve", use_container_width=True)
+                    st.caption("Displays how the F1-Score changes relative to confidence thresholds. Optimal performance occurs near ~0.455.")
+
