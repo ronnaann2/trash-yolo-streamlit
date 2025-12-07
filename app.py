@@ -14,7 +14,7 @@ model = load_model()
 # ---------------------------------------------------------
 # 2. UI LAYOUT
 # ---------------------------------------------------------
-st.title("🔩 Scrap & Metal Detector")
+st.title("Orlan's Junkshop Scrap Cleaner")
 st.write("Upload an image or use your camera to detect scrap.")
 
 # Sidebar for settings
