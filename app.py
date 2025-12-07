@@ -77,7 +77,7 @@ with tab2:
     # ---------------------------------------------------------
     # TRAINING LOSS CURVES (Row 1)
     # ---------------------------------------------------------
-    st.image("training_loss_curve.png", caption="Training and Validation Loss Curves")
+    st.image("train_metrics.png", caption="Training and Validation Loss Curves")
     st.markdown(
         """
         **Training Loss Interpretation**  
