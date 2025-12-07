@@ -1,7 +1,7 @@
 import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
-import pandas as pd  # FIX: Added pandas import
+import pandas as pd
 
 # ---------------------------------------------------------
 # 1. LOAD MODEL (With Caching)
@@ -17,6 +17,7 @@ model = load_model()
 # ---------------------------------------------------------
 st.title("Orlan's Junkshop Scrap Cleaner")
 tab1, tab2, tab3 = st.tabs(["🔍 Scrap Checker", "🗂 Dataset Overview", "📊 Model Performance"])
+
 
 
 # ======================== TAB 1: SCRAP CHECKER ========================
@@ -63,24 +64,18 @@ with tab1:
                         st.error(f"❌ FAIL — Metal: {metal_percentage:.1f}% (Req: ≥{pass_threshold}%)")
 
 
+
 # ======================== TAB 2: DATASET OVERVIEW ========================
 with tab2:
 
-    st.markdown(
-        """
-        <div style="display: flex; justify-content: center; margin-bottom: 25px;">
-            <img src="data_cover.png" width="850">
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.image("data_cover.png", caption="Dataset Overview", use_container_width=True)
 
     st.markdown("### 🗂 Dataset Summary & Preparation")
 
     model_info = pd.DataFrame({
         "Property": ["Model", "Total Labeled Images", "Classes"],
         "Value": ["YOLOv8 Small", "692", "2 (metal, trash)"]
-    })
+    }).set_index("Property")
     st.table(model_info)
 
     st.markdown("---")
@@ -90,76 +85,52 @@ with tab2:
         "Split": ["Training", "Validation", "Testing"],
         "Images": [1452, 139, 69],
         "Percent": ["87%", "8%", "4%"]
-    })
+    }).set_index("Split")
     st.table(split_data)
 
-    st.info("Balanced well: majority for learning, smaller portion for accurate performance evaluation.")
+    st.info("More training data allows the model to learn better while smaller test data ensures unbiased evaluation.")
 
     st.markdown("---")
     st.subheader("Preprocessing Applied")
-    st.markdown(
-        """
-        • Auto-Orient — fixes camera rotation  
-        • Resize — 640×640 for YOLO  
-        • Adaptive Contrast — improved low-light visibility  
-        """
+    st.write(
+        "• Auto-Orient — fixes camera rotation\n"
+        "• Resize — 640×640 for YOLO\n"
+        "• Adaptive Contrast — improves visibility in low light"
     )
 
     st.markdown("---")
     st.subheader("Augmentations Used")
-    st.markdown(
-        """
-        • Brightness variation (−20% to +20%)  
-        • Blur up to 2.5px  
-        • Noise up to 0.1%  
-        • **3× variations per image** using transformations  
-        """
+    st.write(
+        "• Brightness variation (−20% to +20%)\n"
+        "• Blur up to 2.5px\n"
+        "• Noise up to 0.1%\n"
+        "• **3× synthetic versions per image**"
     )
 
     st.markdown("---")
     st.subheader("🔍 Key Dataset Insights")
-    st.markdown(
-        """
-        ✔ Built specifically for junkshop scrap conditions  
-        ✔ Handles rust, dirt, and irregular shapes  
-        ✔ Prevents profitable metal loss in operations  
-        ✔ Ready for deployment to real sorting workflows  
-        """
+    st.write(
+        "✔ Designed for realistic junkshop scrap environments\n"
+        "✔ Handles dirt, rust, and shape deformities\n"
+        "✔ Supports profit-driven decision making — keeps metal out of trash"
     )
+
 
 
 # ======================== TAB 3: MODEL PERFORMANCE ========================
 with tab3:
     st.markdown("### 📊 Model Evaluation Metrics (on Test Set)")
-    st.write("These metrics verify how accurately the system detects scrap in real scenarios.")
+    st.write("These metrics confirm the detector is reliable for real scrap operations.")
 
     st.image("train_metrics.png", caption="Training and Validation Loss Curves")
-    st.markdown(
-        """
-        • Smooth learning → stable convergence  
-        • Low overfitting → effective generalization  
-        • Strong segmentation → precise scrap boundaries  
-        """
-    )
+    st.write("Smooth downward loss trend → very strong learning & low overfitting.")
 
     st.markdown("---")
 
     st.image("confusion_matrix.png", caption="Confusion Matrix")
-    st.markdown(
-        """
-        • Metal and trash are classified with very high accuracy  
-        • Minimal confusion → reliable on mixed junk piles  
-        • Protects value — metal is rarely thrown away  
-        """
-    )
+    st.write("Correct predictions are dominant → system rarely throws away valuable metal.")
 
     st.markdown("---")
 
     st.image("f1_confidence_curve.png", caption="F1-Confidence Curve")
-    st.markdown(
-        """
-        • Peak performance near 0.455 threshold  
-        • Recommended default: **0.50 confidence**  
-        • Robust against dirty, damaged scrap objects  
-        """
-    )
+    st.write("Stable high F1 score even with imperfect scrap images → very robust model.")
