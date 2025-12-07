@@ -63,52 +63,72 @@ with tab1:
 
 
 # ======================== TAB 2: MODEL METRICS ========================
+# ======================== TAB 2: DATASET OVERVIEW ========================
 with tab2:
-    st.markdown("### Model Evaluation Metrics (on Test Set)")
-    st.write(
-        "These visualizations summarize how well the model performs in identifying and distinguishing "
-        "scrap metal from trash. These results ensure the Scrap Checker can be trusted during "
-        "real-world operations inside Orlan’s Junkshop."
-    )
-
-    st.image("train_metrics.png", caption="Training and Validation Loss Curves")
+    # Cover image
     st.markdown(
         """
-        **Training Loss Interpretation**  
-        • Both training and validation loss decrease smoothly → stable learning  
-        • Very small gap → **low overfitting risk**  
-        • Segmentation loss improves strongly → accurate object boundary detection  
-        
-        📌 The model **generalizes well** and handles unseen junk effectively.
-        """
+        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+            <img src="data_cover.png" width="850">
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    
-    st.markdown("---")
 
-    st.image("confusion_matrix.png", caption="Confusion Matrix")
-    st.markdown(
-        """
-        **Classification Reliability**  
-        • **912** correct metal classifications  
-        • **236** correct trash classifications  
-        • Few misclassifications → high trustworthiness  
-        
-        📌 The system prevents valuable metal from being mistakenly labeled as trash — increasing profit.
-        """
-    )
+    st.markdown("### 🗂 Dataset Summary & Preparation")
+
+    model_info = pd.DataFrame({
+        "Property": ["Model", "Total Labeled Images", "Classes"],
+        "Value": ["YOLOv8 Small", "692", "2 (metal, trash)"]
+    })
+    st.table(model_info)
 
     st.markdown("---")
+    st.subheader("Dataset Split Distribution")
 
-    st.image("f1_confidence_curve.png", caption="F1-Confidence Curve")
+    split_data = pd.DataFrame({
+        "Split": ["Training", "Validation", "Testing"],
+        "Images": [1452, 139, 69],
+        "Percent": ["87%", "8%", "4%"]
+    })
+    st.table(split_data)
+
+    st.info(
+        "Most images are used for training to maximize learning, "
+        "while validation & testing measure real-world performance."
+    )
+
+    st.markdown("---")
+    st.subheader("Preprocessing Applied")
     st.markdown(
         """
-        **Optimal Confidence for Real-World Use**  
-        • Highest F1 ≈ **0.93** at 0.455 confidence  
-        • Stable curve → robust even with imperfect scrap conditions  
-        
-        📌 Recommended default: **0.50 confidence** — strong balance of speed & accuracy.
+        • Auto-Orient → fixes camera rotation  
+        • Resize → 640×640 to match YOLO input format  
+        • Adaptive Contrast Enhancement → helps see items better in low light  
         """
     )
+
+    st.markdown("---")
+    st.subheader("Augmentations Used")
+    st.markdown(
+        """
+        • Brightness variation (−20% to +20%)  
+        • Blur up to 2.5px  
+        • Noise up to 0.1% pixels  
+        • **3× synthetic versions per image**  
+        """
+    )
+
+    st.markdown("---")
+    st.subheader("🔍 Key Dataset Insights")
+    st.markdown(
+        """
+        ✔ Prepared for scrap identification in a real junkshop  
+        ✔ Increased variation for better generalization  
+        ✔ Reduces risk of valuable metal being incorrectly thrown away  
+        """
+    )
+
 
 
 # ======================== TAB 3: DATASET OVERVIEW ========================
