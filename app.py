@@ -69,39 +69,56 @@ with tab1:
 with tab2:
     st.markdown("### Model Evaluation Metrics (on Test Set)")
     st.write(
-        "These performance visualizations are based on the model's validation/testing results. "
-        "They help determine how reliably the system can classify scrap metal versus trash when used "
-        "by users in Orlan’s Junkshop."
+        "These visualizations summarize how well the model performs in identifying and distinguishing "
+        "scrap metal from trash. These results ensure the Scrap Checker can be trusted during "
+        "real-world operations inside Orlan’s Junkshop."
     )
-    
+
     # ---------------------------------------------------------
-    # Confusion Matrix (Row 1)
+    # TRAINING LOSS CURVES (Row 1)
     # ---------------------------------------------------------
-    st.image("confusion_matrix.png", caption="Confusion Matrix")
+    st.image("training_loss_curve.png", caption="Training and Validation Loss Curves")
     st.markdown(
         """
-        **Confusion Matrix Interpretation**  
-        • The model correctly identifies **912 metal items** and **236 trash items**, showing strong reliability.  
-        • A small number of background areas are misclassified as scrap (**67 cases**), but this does not heavily affect performance.  
-        • Mislabeling between metal and trash is **very low** (only **5 metal → trash** and **11 trash → metal**).  
+        **Training Loss Interpretation**  
+        • Loss for both training and validation decreases smoothly across epochs, indicating stable learning.  
+        • The gap between training and validation curves is small → **minimal overfitting**.  
+        • The segmentation loss follows a strong downward trend, proving the model learns object shapes well.  
         
-        📌 This means the Scrap Checker is highly capable of preventing recyclable metal from being misclassified as trash — leading to reduced losses and improved recycling efficiency.
+        📌 This means the model did **not** just memorize the training images — it generalized well to new unseen scrap.
         """
     )
     
     st.markdown("---")
 
     # ---------------------------------------------------------
-    # F1 Confidence Curve (Row 2)
+    # CONFUSION MATRIX (Row 2)
+    # ---------------------------------------------------------
+    st.image("confusion_matrix.png", caption="Confusion Matrix")
+    st.markdown(
+        """
+        **Classification Reliability**  
+        • **912 correct metal detections** and **236 correct trash detections** demonstrate high accuracy.  
+        • Only a **very small** number of misclassifications (5–11 per class).  
+        • Background visual noise has minimal interference (67 cases).  
+        
+        📌 The system ensures valuable metal is **rarely marked as trash**, boosting recycling efficiency and profit.
+        """
+    )
+
+    st.markdown("---")
+
+    # ---------------------------------------------------------
+    # F1 CONFIDENCE CURVE (Row 3)
     # ---------------------------------------------------------
     st.image("f1_confidence_curve.png", caption="F1-Confidence Curve")
     st.markdown(
         """
-        **F1-Confidence Curve Interpretation**  
-        • The peak performance occurs around **0.455 confidence threshold**, where F1 ≈ **0.93**.  
-        • The curve remains high and stable across a wide confidence range (~0.3–0.85), showing excellent **balance between precision and recall**.  
-        • This confirms that the model consistently performs well even if object shapes, lighting, or camera angles vary.  
+        **Optimal Confidence for Real-World Use**  
+        • F1-Score stays high (≈ **0.93**) at confidence ~0.455.  
+        • Curve stability shows the model performs strongly despite visual differences in scrap condition.  
         
-        📌 For practical use, a default confidence of **0.50** ensures accurate detection while still finding metals that are partially covered, dirty, or deformed.
+        📌 Best setting: **0.50 confidence** — ensures accurate scrap sorting with fewer missed metals.
         """
     )
+
