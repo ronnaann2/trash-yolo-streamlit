@@ -75,50 +75,77 @@ with tab2:
     )
 
     # ---------------------------------------------------------
-    # TRAINING LOSS CURVES (Row 1)
+    # TRAINING LOSS CURVES — CENTERED
     # ---------------------------------------------------------
-    st.image("train_metrics.png", caption="Training and Validation Loss Curves")
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: center;">
+            <img src="train_metrics.png" width="700">
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### Training and Validation Loss Curves")
     st.markdown(
         """
         **Training Loss Interpretation**  
-        • Loss for both training and validation decreases smoothly across epochs, indicating stable learning.  
-        • The gap between training and validation curves is small → **minimal overfitting**.  
-        • The segmentation loss follows a strong downward trend, proving the model learns object shapes well.  
-        
-        📌 This means the model did **not** just memorize the training images — it generalized well to new unseen scrap.
+        • All training and validation loss values continuously drop, proving stable learning.  
+        • Minimal separation between training and validation curves → **low overfitting risk**.  
+        • Segmentation loss improvements confirm strong detection of object shapes and boundaries.  
+
+        📌 This means the model **generalizes well** and will perform reliably even when detecting new
+        types of junk, rusted scrap, or items with dirt/broken edges.
         """
     )
-    
+
     st.markdown("---")
 
     # ---------------------------------------------------------
-    # CONFUSION MATRIX (Row 2)
+    # CONFUSION MATRIX — CENTERED
     # ---------------------------------------------------------
-    st.image("confusion_matrix.png", caption="Confusion Matrix")
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: center;">
+            <img src="confusion_matrix.png" width="700">
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### Confusion Matrix")
     st.markdown(
         """
         **Classification Reliability**  
-        • **912 correct metal detections** and **236 correct trash detections** demonstrate high accuracy.  
-        • Only a **very small** number of misclassifications (5–11 per class).  
-        • Background visual noise has minimal interference (67 cases).  
+        • **912** correct metal classifications → valuable recyclables are not thrown away.  
+        • **236** correct trash detections → prevents contamination of the recycle stream.  
+        • Very low false predictions between classes (only 5–11 cases).  
         
-        📌 The system ensures valuable metal is **rarely marked as trash**, boosting recycling efficiency and profit.
+        📌 The system protects profit: **metal is rarely misclassified as trash**, reducing losses in operation.
         """
     )
 
     st.markdown("---")
 
     # ---------------------------------------------------------
-    # F1 CONFIDENCE CURVE (Row 3)
+    # F1 CONFIDENCE CURVE — CENTERED
     # ---------------------------------------------------------
-    st.image("f1_confidence_curve.png", caption="F1-Confidence Curve")
     st.markdown(
         """
-        **Optimal Confidence for Real-World Use**  
-        • F1-Score stays high (≈ **0.93**) at confidence ~0.455.  
-        • Curve stability shows the model performs strongly despite visual differences in scrap condition.  
+        <div style="display: flex; justify-content: center;">
+            <img src="f1_confidence_curve.png" width="700">
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("#### F1-Confidence Curve")
+    st.markdown(
+        """
+        **Optimal Confidence for Real Use**  
+        • Highest F1 ≈ **0.93** achieved around ~0.455 confidence.  
+        • Curve stays high and stable → consistent detection even when scrap varies in quality.  
+        • Improves real-world performance in messy lighting or camera angles.  
         
-        📌 Best setting: **0.50 confidence** — ensures accurate scrap sorting with fewer missed metals.
+        📌 Recommended default threshold: **0.50 confidence**  
+        This ensures accurate metal detection **without missing valuable scrap**.
         """
     )
 
