@@ -2,18 +2,59 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 import pandas as pd
+import numpy as np
 
 # ---------------------------------------------------------
 # 1. LOAD MODEL (With Caching)
 # ---------------------------------------------------------
 @st.cache_resource
 def load_model():
-    return YOLO('best.pt')
+    return YOLO('best.pt')   # <-- your trained model
 
 model = load_model()
 
+
 # ---------------------------------------------------------
-# 2. UI TABS
+# 2. PIXEL PERCENTAGE CALCULATOR
+# ---------------------------------------------------------
+def compute_pixel_percentage(results, model):
+    r = results[0]
+
+    # No segmentation output
+    if r.masks is None:
+        return 0, 0, False
+
+    total_metal_pixels = 0
+    total_nonmetal_pixels = 0
+
+    class_names = model.names
+
+    # Loop through each mask + class
+    for mask, cls in zip(r.masks.data, r.boxes.cls):
+        mask_np = mask.cpu().numpy()
+        pixel_count = np.sum(mask_np)
+
+        label = class_names[int(cls)]
+
+        if "metal" in label.lower():
+            total_metal_pixels += pixel_count
+        else:
+            total_nonmetal_pixels += pixel_count
+
+    total_pixels = total_metal_pixels + total_nonmetal_pixels
+
+    if total_pixels == 0:
+        return 0, 0, False
+
+    metal_pct = (total_metal_pixels / total_pixels) * 100
+    nonmetal_pct = 100 - metal_pct
+
+    return metal_pct, nonmetal_pct, True
+
+
+
+# ---------------------------------------------------------
+# 3. UI TABS
 # ---------------------------------------------------------
 st.title("Orlan's Junkshop Scrap Cleaner")
 tab1, tab2, tab3 = st.tabs(["🔍 Scrap Checker", "🗂 Dataset Overview", "📊 Model Performance"])
@@ -22,11 +63,14 @@ tab1, tab2, tab3 = st.tabs(["🔍 Scrap Checker", "🗂 Dataset Overview", "📊
 
 # ======================== TAB 1: SCRAP CHECKER ========================
 with tab1:
-    st.write("Upload an image or use your camera to detect scrap.")
 
+    st.write("Upload an image or use your camera to detect scrap and compute pixel percentage of metal vs. trash.")
+
+    # Sidebar settings
     conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5, 0.05)
     pass_threshold = st.sidebar.slider("Metal % Required for PASS", 0, 100, 95, 1)
 
+    # Upload or camera
     uploaded_file = st.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png'])
     camera_file = st.camera_input("Or take a picture")
     image_source = uploaded_file if uploaded_file else camera_file
@@ -37,31 +81,29 @@ with tab1:
 
         if st.button("Detect Objects"):
             with st.spinner("Analyzing..."):
+                
+                # Run YOLO detection
                 results = model.predict(image, conf=conf_threshold)
                 res_plotted = results[0].plot()
                 st.image(res_plotted, caption="Detected Objects", use_container_width=True)
 
-                boxes = results[0].boxes
-                total_objects = len(boxes)
+                # Pixel percentage calculation
+                metal_pct, nonmetal_pct, valid = compute_pixel_percentage(results, model)
 
-                if total_objects == 0:
-                    st.warning("⚠️ No objects detected. Try lowering confidence threshold.")
+                if not valid:
+                    st.warning("⚠️ No segmentation masks detected. Try lowering confidence or use a clearer image.")
                 else:
-                    class_names = model.names
-                    metal_count = sum(1 for box in boxes if "metal" in class_names[int(box.cls[0])].lower())
-                    trash_count = total_objects - metal_count
-                    metal_percentage = (metal_count / total_objects) * 100
-
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric("Total Objects", total_objects)
-                    col2.metric("🔩 Metal", f"{metal_count} ({metal_percentage:.1f}%)")
-                    col3.metric("🗑️ Trash", f"{trash_count} ({100-metal_percentage:.1f}%)")
+                    col1, col2 = st.columns(2)
+                    col1.metric("🔩 Metal %", f"{metal_pct:.2f}%")
+                    col2.metric("🗑️ Non-metal %", f"{nonmetal_pct:.2f}%")
 
                     st.markdown("---")
-                    if metal_percentage >= pass_threshold:
-                        st.success(f"✅ PASS — Metal: {metal_percentage:.1f}% (Req: ≥{pass_threshold}%)")
+
+                    # Pass/Fail Logic
+                    if metal_pct >= pass_threshold:
+                        st.success(f"✅ PASS — Metal: {metal_pct:.1f}% (Required ≥ {pass_threshold}%)")
                     else:
-                        st.error(f"❌ FAIL — Metal: {metal_percentage:.1f}% (Req: ≥{pass_threshold}%)")
+                        st.error(f"❌ FAIL — Metal: {metal_pct:.1f}% (Required ≥ {pass_threshold}%)")
 
 
 
@@ -74,7 +116,7 @@ with tab2:
 
     model_info = pd.DataFrame({
         "Property": ["Model", "Total Labeled Images", "Classes"],
-        "Value": ["YOLOv8 Small", "692", "2 (metal, trash)"]
+        "Value": ["YOLOv8 Small Segmentation", "692", "2 (metal, trash)"]
     }).set_index("Property")
     st.table(model_info)
 
@@ -88,7 +130,7 @@ with tab2:
     }).set_index("Split")
     st.table(split_data)
 
-    st.info("More training data allows the model to learn better while smaller test data ensures unbiased evaluation.")
+    st.info("More training data allows the model to learn better, while smaller test data ensures unbiased evaluation.")
 
     st.markdown("---")
     st.subheader("Preprocessing Applied")
@@ -122,6 +164,7 @@ with tab2:
     )
 
 
+
 # ======================== TAB 3: MODEL PERFORMANCE ========================
 with tab3:
     st.markdown("### 📊 Model Evaluation Metrics (on Test Set)")
@@ -133,7 +176,7 @@ with tab3:
     st.markdown("---")
 
     st.image("confusion_matrix.png", caption="Confusion Matrix")
-    st.write("Correct predictions are dominant → system rarely throws away valuable metal.")
+    st.write("Correct predictions dominate — system rarely throws away valuable metal.")
 
     st.markdown("---")
 
