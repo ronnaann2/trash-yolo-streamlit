@@ -34,7 +34,7 @@ model = load_model()
 def load_env_images():
     try:
         floor = plt.imread('floor.jpg')
-        belt = plt.imread('conveyor_belt.jpg')
+        belt = plt.imread('conveyor_belt.png')
         return floor, belt
     except FileNotFoundError:
         return None, None
@@ -75,7 +75,7 @@ def compute_pixel_percentage(results, model):
 def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_placeholder):
     img_floor, img_belt = load_env_images()
     if img_floor is None or img_belt is None:
-        sim_placeholder.error("Environment images not found (floor.jpg, conveyor_belt.jpg).")
+        sim_placeholder.error("Environment images not found (floor.jpg, conveyor_belt.png).")
         return
 
     # --- CONFIGURATION ---
