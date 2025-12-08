@@ -1,306 +1,248 @@
 import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
-import pandas as pd
 import numpy as np
+import pandas as pd
 import matplotlib
-matplotlib.use("Agg")  # Use non-GUI backend for Streamlit
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 import time
 
-# ---------------------------------------------------------
-# 0. GLOBAL SIM STATE (BIN COUNTS ACROSS RUNS)
-# ---------------------------------------------------------
+# ==============================
+# 0️⃣ GLOBAL STATE (BIN COUNTERS)
+# ==============================
 if "good_bin" not in st.session_state:
     st.session_state["good_bin"] = 0
+
 if "bad_bin" not in st.session_state:
     st.session_state["bad_bin"] = 0
 
-# ---------------------------------------------------------
-# 1. LOAD MODEL (With Caching)
-# ---------------------------------------------------------
+# ==============================
+# 1️⃣ MODEL LOADING
+# ==============================
 @st.cache_resource
 def load_model():
-    return YOLO('best.pt')   # <-- your trained model
+    return YOLO("best.pt")
 
 model = load_model()
 
-# ---------------------------------------------------------
-# 2. LOAD ENVIRONMENT IMAGES FOR SIMULATION
-# ---------------------------------------------------------
+# ==============================
+# 2️⃣ SIMULATION BACKGROUND IMAGES
+# ==============================
 @st.cache_resource
 def load_env_images():
     try:
-        floor = plt.imread('floor.jpg')
-        belt = plt.imread('conveyor_belt.png')  # use your PNG belt
+        floor = plt.imread("floor.jpg")
+        belt = plt.imread("conveyor_belt.png")
         return floor, belt
-    except FileNotFoundError:
+    except:
         return None, None
 
-# ---------------------------------------------------------
-# 3. PIXEL PERCENTAGE CALCULATOR
-# ---------------------------------------------------------
+# ==============================
+# 3️⃣ METAL PIXEL CALCULATION
+# ==============================
 def compute_pixel_percentage(results, model):
     r = results[0]
 
     if r.masks is None:
         return 0, 0, False
 
-    total_metal_pixels = 0
-    total_nonmetal_pixels = 0
-
     class_names = model.names
+    total_metal = 0
+    total_nonmetal = 0
 
     for mask, cls in zip(r.masks.data, r.boxes.cls):
         mask_np = mask.cpu().numpy()
-        pixel_count = np.sum(mask_np)
+        pixels = np.sum(mask_np)
         label = class_names[int(cls)]
-
         if "metal" in label.lower():
-            total_metal_pixels += pixel_count
+            total_metal += pixels
         else:
-            total_nonmetal_pixels += pixel_count
+            total_nonmetal += pixels
 
-    total_pixels = total_metal_pixels + total_nonmetal_pixels
-
-    if total_pixels == 0:
+    total = total_metal + total_nonmetal
+    if total == 0:
         return 0, 0, False
 
-    metal_pct = (total_metal_pixels / total_pixels) * 100
-    nonmetal_pct = 100 - metal_pct
+    metal_pct = (total_metal / total) * 100
+    return metal_pct, 100 - metal_pct, True
 
-    return metal_pct, nonmetal_pct, True
-
-# ---------------------------------------------------------
-# 4. CONVEYOR SIMULATION (USES YOLO RESULT)
-# ---------------------------------------------------------
+# ==============================
+# 4️⃣ CONVEYOR + SORTING SIM
+# ==============================
 def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_placeholder):
-    """
-    item_image_np : numpy array of the uploaded image
-    metal_pct     : float, metal percentage
-    is_good       : bool, True if PASS
-    pass_threshold: current slider threshold (for HUD color)
-    sim_placeholder: st.empty() in the right column
-    """
+
     img_floor, img_belt = load_env_images()
-    if img_floor is None or img_belt is None:
-        sim_placeholder.error(
-            "Environment images not found. Please add 'floor.jpg' and 'conveyor_belt.png' "
-            "in the same folder as this app."
-        )
+    if img_floor is None:
+        sim_placeholder.error("Missing floor.jpg or conveyor_belt.png")
         return
 
-    # --- CONFIGURATION ---
-    PUSHER_STROKE = 20
-    BIN_CAPACITY = 5        # physical capacity in GOOD bin
-    CONVEYOR_SPEED = 8.0
+    BIN_CAPACITY = 5
+    SPEED = 8
+    PUSHER_MAX = 20
 
-    # --- SIMULATION STATE ---
-    # Start bin counts from stored session values so they persist across images
     state = {
         "conveyor_moving": True,
         "items": [],
-        "good_bin_count": st.session_state["good_bin"],
-        "bad_bin_count": st.session_state["bad_bin"],
-        "current_item_processing": None,
-        "pusher_position": 0,
-        "forklift_active": False,
+        "pusher": 0,
         "scan_timer": 0,
+        "good": st.session_state["good_bin"],
+        "bad": st.session_state["bad_bin"],
+        "forklift_active": False
     }
 
-    # --- MATPLOTLIB FIGURE SETUP ---
     fig, ax = plt.subplots(figsize=(6, 4))
-    fig.patch.set_facecolor('#222222')
-    ax.set_facecolor('#222222')
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
-    ax.set_aspect('equal')
-    ax.axis('off')
+    ax.axis("off")
 
-    # Inset LIVE FEED
     ax_feed = fig.add_axes([0.05, 0.60, 0.25, 0.25])
-    ax_feed.set_facecolor('black')
     ax_feed.set_xticks([])
     ax_feed.set_yticks([])
-
-    # --- VISUAL HELPERS (CLOSURES BOUND TO ax / ax_feed / state) ---
-    def draw_image_main(img, x, y, width, height, z):
-        ax.imshow(img, extent=[x, x + width, y, y + height], zorder=z)
-
-    def draw_detailed_bin(x, y, width, height, color, label, text_color='white'):
-        z_bin = 4
-        body_color = matplotlib.colors.to_rgb(color)
-        body_color = [c * 0.8 for c in body_color]
-        ax.add_patch(
-            patches.Rectangle(
-                (x, y), width, height,
-                facecolor=body_color,
-                edgecolor='black',
-                linewidth=2,
-                zorder=z_bin
-            )
-        )
-        ax.add_patch(
-            patches.Rectangle(
-                (x - 1, y + height - 3), width + 2, 4,
-                facecolor=color,
-                edgecolor='black',
-                linewidth=2,
-                zorder=z_bin + 1
-            )
-        )
-        rib_color = 'black'
-        rib_width = 0.6
-        for i in range(1, 4):
-            rib_x = x + (width / 4) * i
-            ax.add_patch(
-                patches.Rectangle(
-                    (rib_x - rib_width / 2, y + 1),
-                    rib_width, height - 5,
-                    facecolor=rib_color,
-                    edgecolor=None,
-                    zorder=z_bin + 1,
-                    alpha=0.3
-                )
-            )
-        ax.text(
-            x + width / 2, y + height / 2,
-            label,
-            ha='center', va='center',
-            color=text_color,
-            weight='bold',
-            fontsize=9,
-            zorder=z_bin + 2
-        )
-
-    def draw_hud_main(item):
-        box_w, box_h = 16, 16
-        box_x, box_y = item.x - 8, item.y - 8
-        color = 'cyan'
-        lw = 2
-        z = 20
-
-        ax.plot([box_x, box_x + 4], [box_y + box_h, box_y + box_h], color=color, lw=lw, zorder=z)
-        ax.plot([box_x, box_x], [box_y + box_h, box_y + box_h - 4], color=color, lw=lw, zorder=z)
-        ax.plot([box_x + box_w, box_x + box_w - 4], [box_y, box_y], color=color, lw=lw, zorder=z)
-        ax.plot([box_x + box_w, box_x + box_w], [box_y, box_y + 4], color=color, lw=lw, zorder=z)
-
-        if state['scan_timer'] > 2:
-            status_text = "PASS" if item.is_good else "REJECT"
-            stamp_color = '#00ff00' if item.is_good else '#ff0000'
-            txt = ax.text(
-                item.x, item.y + 12,
-                status_text,
-                color=stamp_color,
-                fontsize=16,
-                weight='bold',
-                ha='center',
-                zorder=z + 5
-            )
-            txt.set_path_effects(
-                [path_effects.withStroke(linewidth=3, foreground='black')]
-            )
+    ax_feed.set_facecolor("black")
 
     class Item:
-        def __init__(self, img, metal_pct, is_good_flag):
+        def __init__(self, img, pct, flag):
             self.x = 0
             self.y = 42
             self.status = "new"
-
             self.image = img
-            self.metal_content = round(float(metal_pct), 2)
-            self.is_good = bool(is_good_flag)
+            self.metal_pct = round(float(pct), 2)
+            self.is_good = flag
 
-    def draw_layout_main():
-        draw_image_main(img_floor, 0, 0, 100, 100, z=0)
-        draw_image_main(img_belt, 0, 40, 80, 12, z=2)
+    if len(state["items"]) == 0:
+        state["items"].append(Item(item_image_np, metal_pct, is_good))
 
-        # Pneumatics
-        ax.add_patch(
-            patches.Rectangle((72, 55), 6, 10,
-                              facecolor='#444444',
-                              edgecolor='black',
-                              zorder=1)
-        )
-        piston_extension = (state["pusher_position"] / PUSHER_STROKE) * 18
-        ax.add_patch(
-            patches.Rectangle((74.5, 55 - piston_extension), 1, piston_extension,
-                              facecolor='#c0c0c0',
-                              zorder=1)
-        )
-        head_y = 55 - piston_extension - 3
-        ax.add_patch(
-            patches.Rectangle((71, head_y), 8, 3,
-                              facecolor='#ff0000',
-                              edgecolor='black',
-                              zorder=4)
-        )
+    def draw_bin(x, y, w, h, color, text):
+        body = [c * 0.7 for c in matplotlib.colors.to_rgb(color)]
+        ax.add_patch(patches.Rectangle((x, y), w, h, facecolor=body, edgecolor="black"))
+        ax.text(x + w / 2, y + h / 2, text,
+                ha="center", va="center", fontsize=9, color="white",
+                weight="bold")
 
-        # Camera Stand
-        ax.add_patch(
-            patches.Rectangle((72, 35), 6, 4,
-                              facecolor='#222',
-                              edgecolor='cyan',
-                              zorder=6)
-        )
-        ax.plot([75, 75], [39, 50], color='grey', lw=2, zorder=1)
+    for frame in range(120):
+        ax.clear()
+        ax.axis("off")
+
+        # Background
+        ax.imshow(img_floor, extent=[0, 100, 0, 100])
+        ax.imshow(img_belt, extent=[0, 80, 40, 52])
+
+        # LIVE FEED
+        ax_feed.clear()
+        ax_feed.set_facecolor("black")
+        ax_feed.imshow(img_belt, extent=[60, 90, 40, 52])
+        ax_feed.text(66, 52, "⚫ FEED", color="red")
+
+        remove = []
+
+        for item in state["items"]:
+            # Draw item
+            ax.imshow(item.image, extent=[item.x - 7, item.x + 7, item.y - 7, item.y + 7], zorder=3)
+
+            # Move + scan logic
+            if state["conveyor_moving"] and item.status == "new":
+                item.x += SPEED
+                if item.x >= 75:
+                    item.x = 75
+                    state["conveyor_moving"] = False
+                    item.status = "scanning"
+                    state["scan_timer"] = 0
+
+            if item.status == "scanning":
+                ax_feed.imshow(item.image, extent=[67, 83, 38, 54])
+                color = "lime" if item.metal_pct >= pass_threshold else "red"
+                ax_feed.text(66, 37, f"{item.metal_pct:.1f}%", color=color)
+
+                state["scan_timer"] += 1
+                if state["scan_timer"] > 5:
+                    item.status = "decision"
+
+            elif item.status == "decision":
+                if item.is_good:  # DROP left
+                    item.x += 8
+                    if item.x > 80:
+                        item.y -= 8
+                    if item.y < 28:
+                        state["good"] += 1
+                        remove.append(item)
+                        state["conveyor_moving"] = True
+                else:  # PUSH right
+                    if state["pusher"] < PUSHER_MAX:
+                        state["pusher"] += 10
+                        item.y -= 8
+                        item.x += 2
+                    else:
+                        state["bad"] += 1
+                        remove.append(item)
+                        state["pusher"] = 0
+                        state["conveyor_moving"] = True
+
+        for i in remove:
+            state["items"].remove(i)
 
         # Bins
-        draw_detailed_bin(
-            85, 15, 18, 22, '#228B22',
-            f"GOOD:\n{state['good_bin_count']}/{BIN_CAPACITY}"
-        )
-        draw_detailed_bin(
-            70, 5, 18, 22, '#DC143C',
-            f"REJECTS:\n{state['bad_bin_count']}"
-        )
+        draw_bin(85, 15, 18, 22, "green", f"GOOD\n{state['good']}/{BIN_CAPACITY}")
+        draw_bin(70, 5, 18, 22, "red", f"BAD\n{state['bad']}")
 
-        if state["forklift_active"]:
-            bbox_props = dict(boxstyle="rarrow,pad=0.3", fc="red", ec="black", lw=2)
-            ax.text(
-                50, 20,
-                "BIN FULL: FORKLIFT DISPATCHED",
-                ha='center',
-                color='white',
-                weight='bold',
-                fontsize=12,
-                bbox=bbox_props,
-                zorder=25
-            )
+        sim_placeholder.pyplot(fig)
+        time.sleep(0.03)
 
-    def update_frame(frame):
-        ax.clear()
-        ax.set_xlim(0, 100)
-        ax.set_ylim(0, 100)
-        ax.axis('off')
+    st.session_state["good_bin"] = state["good"]
+    st.session_state["bad_bin"] = state["bad"]
 
-        ax_feed.clear()
-        ax_feed.set_facecolor('black')
-        ax_feed.set_xlim(65, 85)
-        ax_feed.set_ylim(35, 55)
-        ax_feed.set_xticks([])
-        ax_feed.set_yticks([])
-        ax_feed.imshow(img_belt, extent=[60, 90, 40, 52])
-        ax_feed.text(66, 52, "⚫ LIVE SENSOR FEED", color='red', fontsize=8, weight='bold')
+# ==============================
+# 5️⃣ USER INTERFACE
+# ==============================
+st.title("Orlan's Junkshop Scrap Cleaner")
+tab1, tab2, tab3 = st.tabs(["🔍 Sort + Sim", "📂 Dataset", "📈 Performance"])
 
-        # Spawn the single YOLO item once at start
-        if len(state["items"]) == 0 and state["conveyor_moving"] and frame == 0:
-            state["items"].append(Item(item_image_np, metal_pct, is_good))
+with tab1:
+    conf = st.sidebar.slider("Confidence", 0.0, 1.0, 0.5)
+    pass_threshold = st.sidebar.slider("PASS % Metal", 0, 100, 95)
 
-        # Movement
-        if state["conveyor_moving"]:
-            for item in state["items"]:
-                if item.status == "new":
-                    item.x += CONVEYOR_SPEED
-                    if item.x >= 75:
-                        item.x = 75
-                        state["conveyor_moving"] = False
-                        item.status = "scanning"
-                        state["scan_timer"] = 0
+    col_left, col_right = st.columns(2)
 
-        # Processing
-        items_to_remove = []
+    with col_right:
+        sim_placeholder = st.empty()
+        st.caption("Live Sorting Simulation")
 
-        for item in state["items"][
+    with col_left:
+        upload = st.file_uploader("Upload", type=["jpg", "png"])
+        camera = st.camera_input("Camera")
+        img_src = upload if upload else camera
+
+        if img_src:
+            img = Image.open(img_src).convert("RGB")
+            st.image(img, caption="Uploaded")
+
+            if st.button("Detect & Sort"):
+                with st.spinner("Analyzing..."):
+                    res = model.predict(img, conf=conf)
+                    st.image(res[0].plot(), caption="Detection")
+
+                    metal_pct, nonmetal_pct, valid = compute_pixel_percentage(res, model)
+
+                    if not valid:
+                        st.warning("No segmentation detected")
+                    else:
+                        if metal_pct >= pass_threshold:
+                            st.success(f"PASS — {metal_pct:.1f}% metal")
+                            is_good = True
+                        else:
+                            st.error(f"FAIL — {metal_pct:.1f}% metal")
+                            is_good = False
+
+                        run_conveyor_sim(np.array(img),
+                                         metal_pct,
+                                         is_good,
+                                         pass_threshold,
+                                         sim_placeholder)
+
+with tab2:
+    st.write("Dataset Overview Coming Soon...")
+
+with tab3:
+    st.write("Model Performance Coming Soon...")
