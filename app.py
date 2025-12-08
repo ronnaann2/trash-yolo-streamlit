@@ -34,7 +34,7 @@ model = load_model()
 def load_env_images():
     try:
         floor = plt.imread('floor.jpg')
-        belt = plt.imread('conveyor_belt.jpg')
+        belt = plt.imread('conveyor_belt.png')
         return floor, belt
     except FileNotFoundError:
         return None, None
@@ -87,7 +87,7 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
     img_floor, img_belt = load_env_images()
     if img_floor is None or img_belt is None:
         sim_placeholder.error(
-            "Environment images not found. Please add 'floor.jpg' and 'conveyor_belt.jpg' "
+            "Environment images not found. Please add 'floor.jpg' and 'conveyor_belt.png' "
             "in the same folder as this app."
         )
         return
