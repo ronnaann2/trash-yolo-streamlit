@@ -23,6 +23,7 @@ if "bad_bin" not in st.session_state:
 # ---------------------------------------------------------
 @st.cache_resource
 def load_model():
+    # Make sure best.pt is in the same folder
     return YOLO('best.pt')
 
 model = load_model()
@@ -34,7 +35,6 @@ model = load_model()
 def load_env_images():
     try:
         floor = plt.imread('floor.jpg')
-        # UPDATED: Changed to .png as requested
         belt = plt.imread('conveyor_belt.png') 
         return floor, belt
     except FileNotFoundError:
@@ -81,7 +81,7 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
 
     # --- CONFIGURATION ---
     PUSHER_STROKE = 20
-    BIN_CAPACITY = 100 
+    BIN_CAPACITY = 5  # <-- SET BACK TO 5 FOR FORKLIFT LOGIC
     CONVEYOR_SPEED = 8.0
 
     # --- SIMULATION STATE ---
@@ -167,13 +167,14 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
         ax.add_patch(patches.Rectangle((72, 35), 6, 4, facecolor='#222', edgecolor='cyan', zorder=6))
         ax.plot([75, 75], [39, 50], color='grey', lw=2, zorder=1)
 
-        # Bins
-        draw_detailed_bin(85, 15, 18, 22, '#228B22', f"GOOD:\n{state['good_bin_count']}")
+        # Bins - Visuals
+        draw_detailed_bin(85, 15, 18, 22, '#228B22', f"GOOD:\n{state['good_bin_count']}/{BIN_CAPACITY}")
         draw_detailed_bin(70, 5, 18, 22, '#DC143C', f"REJECTS:\n{state['bad_bin_count']}")
 
+        # --- FORKLIFT ALERT OVERLAY ---
         if state["forklift_active"]:
             bbox_props = dict(boxstyle="rarrow,pad=0.3", fc="red", ec="black", lw=2)
-            ax.text(50, 20, "BIN CAPACITY REACHED", ha='center', color='white', weight='bold', fontsize=12, bbox=bbox_props, zorder=25)
+            ax.text(50, 20, "BIN FULL: FORKLIFT DISPATCHED\n(System Paused)", ha='center', color='white', weight='bold', fontsize=10, bbox=bbox_props, zorder=25)
 
     def update_frame(frame):
         ax.clear()
@@ -190,9 +191,25 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
         ax_feed.imshow(img_belt, extent=[60, 90, 40, 52])
         ax_feed.text(66, 52, "⚫ LIVE SENSOR FEED", color='red', fontsize=8, weight='bold')
 
+        # Spawn item
         if len(state["items"]) == 0 and state["conveyor_moving"] and frame == 0:
             state["items"].append(Item(item_image_np, metal_pct, is_good))
 
+        # --- FORKLIFT LOGIC ---
+        # If bin is full, stop conveyor and activate forklift
+        if state["good_bin_count"] >= BIN_CAPACITY:
+            state["forklift_active"] = True
+            state["conveyor_moving"] = False
+            
+            # Simulate "Forklift Work" with a random chance to clear per frame
+            # 5% chance per frame to clear -> roughly 0.5-1.0 second pause
+            if np.random.rand() < 0.05:
+                state["good_bin_count"] = 0 # Empty the bin
+                st.session_state["good_bin"] = 0 # Update session state immediately
+                state["forklift_active"] = False
+                state["conveyor_moving"] = True # Restart system
+
+        # Normal Movement
         if state["conveyor_moving"]:
             for item in state["items"]:
                 if item.status == "new":
@@ -263,7 +280,6 @@ uploaded_file = st.sidebar.file_uploader("Upload Scrap Image", type=['jpg', 'jpe
 st.sidebar.markdown("**OR**")
 camera_file = st.sidebar.camera_input("Take a Picture")
 
-# Determine which image source to use
 image_source = uploaded_file if uploaded_file else camera_file
 
 st.sidebar.markdown("---")
@@ -273,12 +289,10 @@ pass_threshold = st.sidebar.slider("Metal % Required for PASS", 0, 100, 95, 1)
 
 st.sidebar.markdown("---")
 st.sidebar.header("3. Controls")
-# ACTION BUTTON IN SIDEBAR
 run_btn = st.sidebar.button("🚀 Detect & Simulate", type="primary")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Bin Status")
-# MANUAL RESET BUTTON
 if st.sidebar.button("🗑️ Reset Bin Counters"):
     st.session_state["good_bin"] = 0
     st.session_state["bad_bin"] = 0
@@ -295,14 +309,11 @@ with tab1:
     if not image_source:
         st.info("👈 Please upload an image or take a photo in the Sidebar to begin.")
     else:
-        # Display the uploaded image at the top of the workspace if needed, 
-        # or just wait for the button.
         st.write("Image Loaded. Ready to process.")
         
         if run_btn:
             image = Image.open(image_source).convert("RGB")
             
-            # Create two columns for Results (Left) and Simulation (Right)
             col_res, col_sim = st.columns([1, 1])
             
             with col_res:
@@ -328,7 +339,6 @@ with tab1:
                         else:
                             st.error(f"❌ FAIL (< {pass_threshold}%)")
 
-            # Only run simulation if detection was valid
             if valid:
                 with col_sim:
                     st.subheader("Process Simulation")
