@@ -354,11 +354,78 @@ with tab1:
                         sim_placeholder=sim_placeholder
                     )
 
+# ======================== TAB 2: DATASET OVERVIEW ========================
 with tab2:
+
     st.image("data_cover.png", caption="Dataset Overview", use_container_width=True)
-    st.markdown("### 🗂 Dataset Summary")
-    st.write("Total Images: 692 (Augmented to 1452)")
-    
+
+    st.markdown("### 🗂 Dataset Summary & Preparation")
+
+    model_info = pd.DataFrame({
+        "Property": ["Model", "Total Labeled Images", "Classes"],
+        "Value": ["YOLOv8 Small Segmentation", "692", "2 (metal, trash)"]
+    }).set_index("Property")
+    st.table(model_info)
+
+    st.markdown("---")
+    st.subheader("Dataset Split Distribution")
+
+    split_data = pd.DataFrame({
+        "Split": ["Training", "Validation", "Testing"],
+        "Images": [1452, 139, 69],
+        "Percent": ["87%", "8%", "4%"]
+    }).set_index("Split")
+    st.table(split_data)
+
+    st.info("More training data allows the model to learn better, while smaller test data ensures unbiased evaluation.")
+
+    st.markdown("---")
+    st.subheader("Preprocessing Applied")
+    st.markdown(
+        """
+        - Auto-Orient — fixes camera rotation  
+        - Resize — 640×640 for YOLO  
+        - Adaptive Contrast — improves visibility in low light  
+        """
+    )
+
+    st.markdown("---")
+    st.subheader("Augmentations Used")
+    st.markdown(
+        """
+        - Brightness variation: −20% to +20%  
+        - Blur: up to 2.5px  
+        - Noise: up to 0.1% pixels  
+        - **3× augmentation** per training image  
+        """
+    )
+
+    st.markdown("---")
+    st.subheader("🔍 Key Dataset Insights")
+    st.markdown(
+        """
+        - Designed for real junkshop scrap conditions  
+        - Handles dirt, rust, and deformities  
+        - Increases recycling profitability — prevents metal from being thrown away  
+        """
+    )
+
+
+
+# ======================== TAB 3: MODEL PERFORMANCE ========================
 with tab3:
-    st.markdown("### 📊 Model Evaluation")
+    st.markdown("### 📊 Model Evaluation Metrics (on Test Set)")
+    st.write("These metrics confirm the detector is reliable for real scrap operations.")
+
+    st.image("train_metrics.png", caption="Training and Validation Loss Curves")
+    st.write("Smooth downward loss trend → very strong learning & low overfitting.")
+
+    st.markdown("---")
+
     st.image("confusion_matrix.png", caption="Confusion Matrix")
+    st.write("Correct predictions dominate — system rarely throws away valuable metal.")
+
+    st.markdown("---")
+
+    st.image("f1_confidence_curve.png", caption="F1-Confidence Curve")
+    st.write("Stable high F1 score even with imperfect scrap images → very robust model.")
