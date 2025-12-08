@@ -10,17 +10,17 @@ import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 import time
 
-# ---------------------------------------------------------
-# 0. GLOBAL SIM STATE (BIN COUNTS ACROSS RUNS)
-# ---------------------------------------------------------
+
+#GLOBAL SIM STATE 
+
 if "good_bin" not in st.session_state:
     st.session_state["good_bin"] = 0
 if "bad_bin" not in st.session_state:
     st.session_state["bad_bin"] = 0
 
-# ---------------------------------------------------------
-# 1. LOAD MODEL (With Caching)
-# ---------------------------------------------------------
+
+#LOAD MODEL
+
 @st.cache_resource
 def load_model():
     # Make sure best.pt is in the same folder
@@ -28,9 +28,9 @@ def load_model():
 
 model = load_model()
 
-# ---------------------------------------------------------
-# 2. LOAD ENVIRONMENT IMAGES FOR SIMULATION
-# ---------------------------------------------------------
+
+#LOAD ENVIRONMENT IMAGES
+
 @st.cache_resource
 def load_env_images():
     try:
@@ -40,9 +40,9 @@ def load_env_images():
     except FileNotFoundError:
         return None, None
 
-# ---------------------------------------------------------
-# 3. PIXEL PERCENTAGE CALCULATOR
-# ---------------------------------------------------------
+
+#PIXEL PERCENTAGE 
+
 def compute_pixel_percentage(results, model):
     r = results[0]
     if r.masks is None:
@@ -70,21 +70,21 @@ def compute_pixel_percentage(results, model):
     nonmetal_pct = 100 - metal_pct
     return metal_pct, nonmetal_pct, True
 
-# ---------------------------------------------------------
-# 4. CONVEYOR SIMULATION
-# ---------------------------------------------------------
+
+#CONVEYOR SIMULATION
+
 def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_placeholder):
     img_floor, img_belt = load_env_images()
     if img_floor is None or img_belt is None:
         sim_placeholder.error("Environment images not found. Ensure 'floor.jpg' and 'conveyor_belt.png' are present.")
         return
 
-    # --- CONFIGURATION ---
+   
     PUSHER_STROKE = 20
     BIN_CAPACITY = 5  # <-- SET BACK TO 5 FOR FORKLIFT LOGIC
     CONVEYOR_SPEED = 8.0
 
-    # --- SIMULATION STATE ---
+
     state = {
         "conveyor_moving": True,
         "items": [],
@@ -109,7 +109,7 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
     ax_feed.set_xticks([])
     ax_feed.set_yticks([])
 
-    # Helper Functions
+
     def draw_image_main(img, x, y, width, height, z):
         ax.imshow(img, extent=[x, x + width, y, y + height], zorder=z)
 
@@ -158,7 +158,7 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
         draw_image_main(img_floor, 0, 0, 100, 100, z=0)
         draw_image_main(img_belt, 0, 40, 80, 12, z=2)
 
-        # Piston & Stand
+        #Piston
         ax.add_patch(patches.Rectangle((72, 55), 6, 10, facecolor='#444444', edgecolor='black', zorder=1))
         piston_extension = (state["pusher_position"] / PUSHER_STROKE) * 18
         ax.add_patch(patches.Rectangle((74.5, 55 - piston_extension), 1, piston_extension, facecolor='#c0c0c0', zorder=1))
@@ -167,11 +167,11 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
         ax.add_patch(patches.Rectangle((72, 35), 6, 4, facecolor='#222', edgecolor='cyan', zorder=6))
         ax.plot([75, 75], [39, 50], color='grey', lw=2, zorder=1)
 
-        # Bins - Visuals
+        #Bins
         draw_detailed_bin(85, 15, 18, 22, '#228B22', f"GOOD:\n{state['good_bin_count']}/{BIN_CAPACITY}")
         draw_detailed_bin(70, 5, 18, 22, '#DC143C', f"REJECTS:\n{state['bad_bin_count']}")
 
-        # --- FORKLIFT ALERT OVERLAY ---
+        #FORKLIFT
         if state["forklift_active"]:
             bbox_props = dict(boxstyle="rarrow,pad=0.3", fc="red", ec="black", lw=2)
             ax.text(50, 20, "BIN FULL: FORKLIFT DISPATCHED\n(System Paused)", ha='center', color='white', weight='bold', fontsize=10, bbox=bbox_props, zorder=25)
@@ -189,27 +189,27 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
         ax_feed.set_xticks([])
         ax_feed.set_yticks([])
         ax_feed.imshow(img_belt, extent=[60, 90, 40, 52])
-        ax_feed.text(66, 52, "⚫ LIVE SENSOR FEED", color='red', fontsize=8, weight='bold')
+        ax_feed.text(66, 52, "LIVE SENSOR FEED", color='red', fontsize=8, weight='bold')
 
-        # Spawn item
+
         if len(state["items"]) == 0 and state["conveyor_moving"] and frame == 0:
             state["items"].append(Item(item_image_np, metal_pct, is_good))
 
-        # --- FORKLIFT LOGIC ---
-        # If bin is full, stop conveyor and activate forklift
+
+
         if state["good_bin_count"] >= BIN_CAPACITY:
             state["forklift_active"] = True
             state["conveyor_moving"] = False
             
-            # Simulate "Forklift Work" with a random chance to clear per frame
-            # 5% chance per frame to clear -> roughly 0.5-1.0 second pause
-            if np.random.rand() < 0.05:
-                state["good_bin_count"] = 0 # Empty the bin
-                st.session_state["good_bin"] = 0 # Update session state immediately
-                state["forklift_active"] = False
-                state["conveyor_moving"] = True # Restart system
 
-        # Normal Movement
+
+            if np.random.rand() < 0.05:
+                state["good_bin_count"] = 0 #Empty
+                st.session_state["good_bin"] = 0 #Update
+                state["forklift_active"] = False
+                state["conveyor_moving"] = True #Restart
+
+
         if state["conveyor_moving"]:
             for item in state["items"]:
                 if item.status == "new":
@@ -239,7 +239,7 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
                 if item.is_good:
                     item.x += 8
                     if item.x > 80: item.y -= 8
-                    # LOGIC: Check if item hit the bin
+
                     if item.y < 28 and item.x > 82:
                         state["good_bin_count"] += 1
                         st.session_state["good_bin"] = state["good_bin_count"] 
@@ -269,12 +269,12 @@ def run_conveyor_sim(item_image_np, metal_pct, is_good, pass_threshold, sim_plac
         sim_placeholder.pyplot(fig)
         time.sleep(0.03)
 
-# ---------------------------------------------------------
-# 5. UI TABS
-# ---------------------------------------------------------
+
+#UI
+
 st.title("Orlan's Junkshop Scrap Cleaner")
 
-# ======================== SIDEBAR INPUTS ========================
+#SIDEBAR
 st.sidebar.header("1. Input Data")
 uploaded_file = st.sidebar.file_uploader("Upload Scrap Image", type=['jpg', 'jpeg', 'png'])
 st.sidebar.markdown("**OR**")
@@ -302,7 +302,7 @@ if st.sidebar.button("🗑️ Reset Bin Counters"):
 st.sidebar.metric("Total Good", st.session_state["good_bin"])
 st.sidebar.metric("Total Rejected", st.session_state["bad_bin"])
 
-# ======================== MAIN TABS ========================
+#MAIN
 tab1, tab2, tab3 = st.tabs(["🔍 Results & Simulation", "🗂 Dataset Overview", "📊 Model Performance"])
 
 with tab1:
@@ -354,7 +354,7 @@ with tab1:
                         sim_placeholder=sim_placeholder
                     )
 
-# ======================== TAB 2: DATASET OVERVIEW ========================
+#DATASET
 with tab2:
 
     st.image("data_cover.png", caption="Dataset Overview", use_container_width=True)
@@ -412,7 +412,7 @@ with tab2:
 
 
 
-# ======================== TAB 3: MODEL PERFORMANCE ========================
+#MODEL PERFORMANCE
 with tab3:
     st.markdown("### 📊 Model Evaluation Metrics (on Test Set)")
     st.write("These metrics confirm the detector is reliable for real scrap operations.")
